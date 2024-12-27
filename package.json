@@ -8,5 +8,9 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@hashgraph/sdk": "^2.24.2",
+    "dotenv": "^16.4.7"
+  }
 }
