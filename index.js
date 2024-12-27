@@ -121,6 +121,13 @@ async function createFungibleToken() {
 
   console.log("Transaction of association was: " + transactionStatus);
 
+  //BALANCE CHECK BEFORE TRANSFERT
+	var balanceCheckTx = await new AccountBalanceQuery().setAccountId(myAccountId).execute(client);
+	console.log(`- Treasury balance: ${balanceCheckTx.tokens._map.get(tokenId.toString())} units of token ID ${tokenId}`);
+	var balanceCheckTx = await new AccountBalanceQuery().setAccountId(newAccountId).execute(client);
+	console.log(`- New's balance: ${balanceCheckTx.tokens._map.get(tokenId.toString())} units of token ID ${tokenId}`);
+
+
   // Transfert the Fungible Token to the New Accoount
   const transferTransaction = await new TransferTransaction()
     .addTokenTransfer(tokenId, myAccountId, -10)
@@ -137,5 +144,10 @@ async function createFungibleToken() {
 
   console.log("The status of the token transfert is: " + transferStatus);
 
+  //BALANCE CHECK AFTER TRANSFER
+	var balanceCheckTx = await new AccountBalanceQuery().setAccountId(myAccountId).execute(client);
+	console.log(`- Treasury balance: ${balanceCheckTx.tokens._map.get(tokenId.toString())} units of token ID ${tokenId}`);
+	var balanceCheckTx = await new AccountBalanceQuery().setAccountId(newAccountId).execute(client);
+	console.log(`- New's balance: ${balanceCheckTx.tokens._map.get(tokenId.toString())} units of token ID ${tokenId}`);
 }
 createFungibleToken();
