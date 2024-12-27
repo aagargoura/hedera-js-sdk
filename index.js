@@ -3,7 +3,7 @@ require('dotenv').config();
 
 
 async function environmentSetup() {
-    // STEP 1: Import already made account
+    // STEP 1: Set up environment variables and creates a testnet client with account as the operator account.
     // Grab you Hedera testnet account ID and private key from your .env file
     const myAccountId = process.env.MY_ACCOUNT_ID;
     const myPrivateKey = process.env.MY_PRIVATE_KEY;
