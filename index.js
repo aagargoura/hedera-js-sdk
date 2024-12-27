@@ -1,8 +1,22 @@
-const { Client, PrivateKey, AccountCreateTransaction, AccountBalanceQuery, Hbar, TransferTransaction } = require("@hashgraph/sdk")
+console.clear();
 require('dotenv').config();
 
+const {
+  Client,
+  PrivateKey,
+  AccountCreateTransaction,
+  AccountBalanceQuery,
+  Hbar,
+  TransferTransaction,
+  TokenCreateTransaction,
+  TokenType,
+  TokenSupplyType,
+  TokenAssociateTransaction
+} = require("@hashgraph/sdk")
 
-async function environmentSetup() {
+const supplyKey = PrivateKey.generateECDSA();
+
+async function createFungibleToken() {
   // STEP 1: Set up environment variables and creates a testnet client with account as the operator account.
   // Grab you Hedera testnet account ID and private key from your .env file
   const myAccountId = process.env.MY_ACCOUNT_ID;
@@ -29,7 +43,7 @@ async function environmentSetup() {
   //STEP 3: Make New Account
   // Set the maximum payment for queries (in HBAR)
   client.setMaxQueryPayment(new Hbar(50));
-  console.log("Conection made succesfully!");
+  console.log("\nConection to portal account made succesfully!");
 
 
   // Create new keys
@@ -39,18 +53,21 @@ async function environmentSetup() {
   if (!newAccountPrivateKey || !newAccountPublicKey) {
     throw new Error("New keys are null");
   } else {
-    console.log("New Keys made succesfully!");
+    console.log("\nNew Keys made succesfully!");
     console.log(`newAccountPrivateKey = ${newAccountPrivateKey}`);
     console.log(`newAccountPublicKey = ${newAccountPublicKey}`);
   }
 
   // Create a new account with 1,000 tinybar starting balance
-  const newAccount = await new AccountCreateTransaction().setKey(newAccountPublicKey).setInitialBalance(Hbar.fromTinybars(1000)).execute(client);
+  const newAccount = await new AccountCreateTransaction()
+    .setKey(newAccountPublicKey)
+    .setInitialBalance(Hbar.fromTinybars(1000))
+    .execute(client);
 
   if (!newAccount) {
     throw new Error("New account is null");
   } else {
-    console.log("New account made succesfully!");
+    console.log("\nNew account made succesfully!");
     console.log(`newAccount = ${newAccount}`);
   }
 
@@ -60,27 +77,65 @@ async function environmentSetup() {
   console.log("\nNew account ID: " + newAccountId);
 
   // Verify the Account balance
-  const accountBalance = await new AccountBalanceQuery().setAccountId(newAccountId).execute(client);
+  const accountBalance = await new AccountBalanceQuery()
+    .setAccountId(newAccountId)
+    .execute(client);
   console.log("The new account balance is: " + accountBalance.hbars.toTinybars() + " tinybar.");
 
-  //Create the transfer transaction
-  const sendHbar = await new TransferTransaction().addHbarTransfer(myAccountId, Hbar.fromTinybars(-1000)).addHbarTransfer(newAccountId, Hbar.fromTinybars(1000)).execute(client);
+  // Create a New Fungible Token (Stablecoin)
+  let tokenCreateTx = await new TokenCreateTransaction()
+    .setTokenName("USD Bar")
+    .setTokenSymbol("USDB")
+    .setTokenType(TokenType.FungibleCommon)
+    .setDecimals(2)
+    .setInitialSupply(10000)
+    .setTreasuryAccountId(myAccountId)
+    .setSupplyType(TokenSupplyType.Infinite)
+    .setSupplyKey(supplyKey)
+    .freezeWith(client);
 
-  //Verify the transaction reached consensus
-  const transactionReceipt = await sendHbar.getReceipt(client);
-  console.log("The transfer transaction from my account to the new account was: " + transactionReceipt.status.toString());
+  // Sign with treasury key
+  let tokenCreateSign = await tokenCreateTx.sign(PrivateKey.fromString(myPrivateKey));
+  // Submit the transaction
+  let tokenCreateSubmit = await tokenCreateSign.execute(client);
+  // Get the transaction receipt
+  let tokenCreateRx = await tokenCreateSubmit.getReceipt(client);
+  // Get the token ID
+  let tokenId = await tokenCreateRx.tokenId;
 
-  //Request the cost of the query
-  const queryCost = await new AccountBalanceQuery().setAccountId(newAccountId).getCost(client);
-  console.log("The cost of query is: " + queryCost);
+  // log the token in the console
+  console.log(`\n--> Created Token with ID: ${tokenId}`);
 
-  //Check the new account's balance
-  const getNewBalance = await new AccountBalanceQuery().setAccountId(newAccountId).execute(client);
-  console.log("The account balance after the transfer is: " + getNewBalance.hbars.toTinybars() + " tinybar.")
+  const transaction = await new TokenAssociateTransaction()
+    .setAccountId(newAccountId)
+    .setTokenIds([tokenId])
+    .freezeWith(client);
 
-  console.log("End");
-  client.close();
-  return newAccountId;
+  const signTx = await transaction.sign(newAccountPrivateKey);
+
+  const txResponse = await signTx.execute(client);
+
+  const associationReceipt = await txResponse.getReceipt(client);
+
+  const transactionStatus = associationReceipt.status;
+
+  console.log("Transaction of association was: " + transactionStatus);
+
+  // Transfert the Fungible Token to the New Accoount
+  const transferTransaction = await new TransferTransaction()
+    .addTokenTransfer(tokenId, myAccountId, -10)
+    .addTokenTransfer(tokenId, newAccountId, 10)
+    .freezeWith(client);
+
+  const signTransferTx = await transferTransaction.sign(PrivateKey.fromString(myPrivateKey));
+
+  const transfertTxResponse = await signTransferTx.execute(client);
+
+  const transferReceipt = await transfertTxResponse.getReceipt(client);
+
+  const transferStatus = await transferReceipt.status;
+
+  console.log("The status of the token transfert is: " + transferStatus);
 
 }
-environmentSetup();
+createFungibleToken();
